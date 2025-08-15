@@ -38,7 +38,7 @@ class QueryLogger
      */
     private function initializeConfiguration()
     {
-        $this->filesystemDisk = Config::get('lalog.filesystem_disk', 'local');
+        $this->filesystemDisk = Config::get('lalog.disk', 'local');
         $this->maxLogFileSize = Config::get('lalog.storage.max_file_size_bytes', 2 * 1024 * 1024);
         $this->logDirectoryPath = rtrim(Config::get('lalog.storage.directory_path', 'query-logs'), '/');
         $this->logFileDateFormat = Config::get('lalog.formatting.log_file_date_format', 'Y-m-d');
