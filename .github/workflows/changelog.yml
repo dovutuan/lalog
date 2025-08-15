@@ -3,7 +3,7 @@ name: Generate Changelog
 on:
   push:
     tags:
-      - "v*" # Trigger when pushing tags like v1.0.0
+      - "*" # Trigger when pushing tags like v1.0.0
 
 jobs:
   changelog:
