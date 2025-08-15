@@ -17,7 +17,7 @@ class ServiceProvider extends IlluminateServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/Config/lalog.php', 'lalog');
 
-        $this->app->singleton('lalog', function ($app) {
+        $this->app->singleton('lalog', function () {
             return new QueryLogger();
         });
     }

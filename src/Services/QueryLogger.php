@@ -3,25 +3,40 @@
 namespace Dovutuan\Lalog\Services;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Config;
 
 class QueryLogger
 {
+    // Current log file name where queries will be stored
     protected string $currentLogFilename;
+
+    // Directory path to store log files
     protected string $logDirectoryPath;
+
+    // Filesystem disk name (e.g., local, s3)
     protected string $filesystemDisk;
+
+    // Maximum log file size in bytes
     protected int $maxLogFileSize;
+
+    // Date format for the log file name
     protected string $logFileDateFormat;
+
+    // Date format for query timestamps
     protected string $queryTimestampFormat;
 
     public function __construct()
     {
+        // Load configuration values when the class is instantiated
         $this->initializeConfiguration();
     }
 
-    protected function initializeConfiguration()
+    /**
+     * Load configuration values from config/lalog.php
+     */
+    private function initializeConfiguration()
     {
         $this->filesystemDisk = Config::get('lalog.filesystem_disk', 'local');
         $this->maxLogFileSize = Config::get('lalog.storage.max_file_size_bytes', 2 * 1024 * 1024);
@@ -30,88 +45,84 @@ class QueryLogger
         $this->queryTimestampFormat = Config::get('lalog.formatting.query_timestamp_format', 'Y-m-d H:i:s');
     }
 
+    /**
+     * Get the storage disk instance based on configuration
+     */
+    private function storage()
+    {
+        return Storage::disk($this->filesystemDisk);
+    }
+
+    /**
+     * Register the query logger:
+     * - Prepare the log file
+     * - Listen to database queries
+     */
     public function register()
     {
         $this->prepareLogFile();
         $this->registerQueryListener();
     }
 
-    protected function prepareLogFile()
+    /**
+     * Prepare the log file for writing queries.
+     * If the current log file exceeds the maximum size,
+     * a new file with an incremental index will be created.
+     */
+    private function prepareLogFile()
     {
         $currentDate = Carbon::now()->format($this->logFileDateFormat);
-        $baseFilename = $this->logDirectoryPath . '/sql-' . $currentDate;
-        $filename = "{$baseFilename}.sql";
+        $baseFilename = "$this->logDirectoryPath/sql-$currentDate";
+        $filename = "$baseFilename.sql";
         $fileIndex = 0;
 
-        // Find available filename if current is full
-        while (
-            Storage::disk($this->filesystemDisk)->exists($filename)
-            && Storage::disk($this->filesystemDisk)->size($filename) >= $this->maxLogFileSize
-        ) {
+        while ($this->storage()->exists($filename) && $this->storage()->size($filename) >= $this->maxLogFileSize) {
             $fileIndex++;
-            $filename = "{$baseFilename}-{$fileIndex}.sql";
+            $filename = "$baseFilename-$fileIndex.sql";
         }
 
         $this->currentLogFilename = $filename;
     }
 
-    protected function registerQueryListener()
+    /**
+     * Register the database query listener.
+     * Every executed query will be passed to recordQuery().
+     */
+    private function registerQueryListener()
     {
         DB::listen(function ($query) {
             $this->recordQuery($query);
         });
     }
 
+    /**
+     * Record a query into the current log file.
+     * Includes execution time, duration, and the full SQL with bindings.
+     */
     public function recordQuery($query)
     {
-        Storage::disk($this->filesystemDisk)->append($this->currentLogFilename, "---------- QUERY LOG START ----------");
+        // Write a start marker
+        $this->storage()->append($this->currentLogFilename, "---------- QUERY LOG START ----------");
 
+        // Process query bindings, formatting dates and wrapping values in quotes
         $processedBindings = array_map(function ($binding) {
             if (is_object($binding) && method_exists($binding, 'format')) {
                 return "'" . $binding->format($this->queryTimestampFormat) . "'";
             }
-            return "'" . (string)$binding . "'";
+            return "'" . $binding . "'";
         }, $query->bindings);
 
+        // Replace placeholders with binding values
         $formattedSql = str_replace(['%', '?'], ['%%', '%s'], $query->sql);
         $formattedSql = vsprintf($formattedSql, $processedBindings);
 
+        // Build the log entry
         $logEntry = "Execution Time: " . Carbon::now()->format($this->queryTimestampFormat) . "\n";
-        $logEntry .= "Duration: {$query->time} ms\n";
-        $logEntry .= "Query: {$formattedSql};\n";
+        $logEntry .= "Duration: $query->time ms\n";
+        $logEntry .= "Query: $formattedSql;\n";
         $logEntry .= "---------- QUERY LOG END ----------\n";
 
-        Storage::disk($this->filesystemDisk)->append($this->currentLogFilename, $logEntry);
-    }
-
-    // Các phương thức setter để override config
-    public function setFilesystemDisk(string $disk): self
-    {
-        $this->filesystemDisk = $disk;
-        return $this;
-    }
-
-    public function setLogDirectory(string $directory): self
-    {
-        $this->logDirectoryPath = rtrim($directory, '/');
-        return $this;
-    }
-
-    public function setMaxLogFileSize(int $bytes): self
-    {
-        $this->maxLogFileSize = $bytes;
-        return $this;
-    }
-
-    public function setLogFileDateFormat(string $format): self
-    {
-        $this->logFileDateFormat = $format;
-        return $this;
-    }
-
-    public function setQueryTimestampFormat(string $format): self
-    {
-        $this->queryTimestampFormat = $format;
-        return $this;
+        // Append the log entry to the file
+        $this->storage()->append($this->currentLogFilename, $logEntry);
     }
 }
