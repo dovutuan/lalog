@@ -69,7 +69,7 @@ Query logs will be formatted like this:
 
 ```text
 ---------- QUERY LOG START ----------
-Execution Time: 2023-05-15 14:30:45  
+Execution Time: 2023-05-15 14:30:45
 Duration: 5.2 ms
 Query: SELECT * FROM users WHERE id = '1';
 ---------- QUERY LOG END ----------
@@ -142,7 +142,7 @@ Pull requests are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 
 ## 📜 License
 
-This package is open-sourced software licensed under the [MIT license](LICENSE.md).
+This package is open-sourced software licensed under the [MIT license](LICENSE).
 
 ## 🐛 Issues
 
